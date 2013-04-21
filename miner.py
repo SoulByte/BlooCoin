@@ -1,5 +1,5 @@
 import socket
-import hashlib
+import _sha512
 import json
 import time
 import multiprocessing
@@ -13,6 +13,9 @@ class BlooMiner:
         self.addr = sys.argv[2]
     def main(self):
         while True:
+
+            sha512 = _sha512.sha512
+            
             self.continue_mining = True
             problem = self.get_coin()
             try:
@@ -21,23 +24,39 @@ class BlooMiner:
                 print "Miner requires a restart."
             print problem
             difficulty = problem['difficulty']
-            start_string = str(problem['start_string'])
+            start_string = str(problem['start_string']).encode("ascii")
+            null = "0" * difficulty
             num = 0
+
             #hashes = 0
             #khps = time.time()
-            while self.continue_mining:
-                test = hashlib.sha512(start_string+str(num)).hexdigest()
-                #hashes += 1
-                #if time.time() - 1 >= khps:
-                    #print str(hashes)+" Hashes per second"
-                   # hashes = 0
-                  #  khps = time.time()
-                if test.startswith("0"*difficulty):
-                    print test, "possible solution"
-                    self.send_work(start_string+str(num), test)
-                    break
-                else:
+            
+            if difficulty % 2: # hexdigest() version - slow
+                while self.continue_mining:
+                    if sha512(start_string + str(num)).hexdigest()[0:difficulty] == null:
+                        print "Possible Solution: " + start_string + str(num)
+                        self.send_work(start_string + str(num), sha512(start_string + str(num)).hexdigest())
+                        break
                     num += 1
+                    #hashes = hashes + 1
+                    #if time.time() - 1 >= khps:
+                        #print str(hashes) + " Hps"
+                        #hashes = 0
+                        #khps = time.time()
+            else:
+                difficulty /= 2 # digest() version - fast
+                null = chr(0) * difficulty
+                while self.continue_mining:
+                    if sha512(start_string + str(num)).digest()[0:difficulty] == null:
+                        print "Possible Solution: " + start_string + str(num)
+                        self.send_work(start_string + str(num), sha512(start_string + str(num)).hexdigest())
+                        break
+                    num += 1
+                    #hashes = hashes + 1
+                    #if time.time() - 1 >= khps:
+                        #print str(hashes) + " Hps"
+                        #hashes = 0
+                        #khps = time.time()
     def check_coin(self):
         while True:
             current = self.get_coin()
@@ -78,7 +97,7 @@ class BlooMiner:
             print "Not a winning solution"
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
+    if len(sys.argv) != 3:
         print "Usage: python miner.py <threads> <bloocoin address>"
         exit()
     b = BlooMiner()
